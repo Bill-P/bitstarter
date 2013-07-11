@@ -24,8 +24,12 @@ References:
 var fs = require('fs');
 var program = require('commander');
 var cheerio = require('cheerio');
+var rest = require('restler');
+
 var HTMLFILE_DEFAULT = "index.html";
 var CHECKSFILE_DEFAULT = "checks.json";
+var URL_DEFAULT = "http://fast-springs-6252.herokuapp.com/";
+
 
 var assertFileExists = function(infile) {
     var instr = infile.toString();
@@ -33,19 +37,28 @@ var assertFileExists = function(infile) {
         console.log("%s does not exist. Exiting.", instr);
         process.exit(1); // http://nodejs.org/api/process.html#process_process_exit_code
     }
+    return fs.readFileSync(instr).toString();
+};
+
+var assertURLExists = function(inURL) {
+    var instr = inURL.toString();
+    if(!instr) {
+        console.log("%s does not exist. Exiting.", instr);
+        process.exit(1); // http://nodejs.org/api/process.html#process_process_exit_code
+    }
     return instr;
 };
 
-var cheerioHtmlFile = function(htmlfile) {
-    return cheerio.load(fs.readFileSync(htmlfile));
+var cheerioHtml = function(html) {
+    return cheerio.load(html);
 };
 
 var loadChecks = function(checksfile) {
-    return JSON.parse(fs.readFileSync(checksfile));
+    return JSON.parse(checksfile);
 };
 
 var checkHtmlFile = function(htmlfile, checksfile) {
-    $ = cheerioHtmlFile(htmlfile);
+    $ = cheerioHtml(htmlfile);
     var checks = loadChecks(checksfile).sort();
     var out = {};
     for(var ii in checks) {
@@ -61,14 +74,26 @@ var clone = function(fn) {
     return fn.bind({});
 };
 
-if(require.main == module) {
-    program
-        .option('-f, --file <html_file>', 'Path to index.html', clone(assertFileExists), HTMLFILE_DEFAULT)
-        .option('-c, --checks <check_file>', 'Path to checks.json', clone(assertFileExists), CHECKSFILE_DEFAULT)
-        .parse(process.argv);
-    var checkJson = checkHtmlFile(program.file, program.checks);
+var checkValidation = function(instr, checks)
+{
+    var checkJson = checkHtmlFile(instr, checks);
     var outJson = JSON.stringify(checkJson, null, 4);
     console.log(outJson);
+}
+
+
+if(require.main == module) {
+    program
+	.option('-u, --url <URL_file>', 'Path to index.html', clone(assertURLExists), URL_DEFAULT)        
+	.option('-f, --file <html_file>', 'Path to index.hml', clone(assertFileExists), HTMLFILE_DEFAULT) 
+        .option('-c, --checks <check_file>', 'Path to checks.json', clone(assertFileExists), CHECKSFILE_DEFAULT)
+        .parse(process.argv);
+
+    if(process.argv[4]=='-f') {
+	checkValidation(program.file, program.checks);
+    }else {
+	rest.get(program.url).on('complete', function(result, response){ checkValidation(result, program.checks) });
+    }
 } else {
     exports.checkHtmlFile = checkHtmlFile;
 }
